@@ -1,0 +1,30 @@
+# Unity default ignore
+[Library]/
+[Temp]/
+[Obj]/
+[Build]/
+[Builds]/
+[Logs]/
+[MemoryCaptures]/
+
+# AssetMeta files are needed in Unity projects usually, 
+# but if this is just a tool, maybe we want them.
+# However, if it's a standalone tool, we don't need the local user files.
+
+# OS generated files
+.DS_Store
+Thumbs.db
+*.swp
+*.lock
+*.user
+*.userprefs
+*.pidb
+*.suo
+*.sln
+*.userprefs
+*.unitypackage
+*.csproj
+*.unityproj
+
+# Log files
+*.log
