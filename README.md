@@ -22,7 +22,8 @@ The tool supports a wide range of common video containers including:
 
 ## Installation
 
-1. Ensure you have HandBrakeCLI installed on your system.
+1. Ensure you have HandBrakeCLI installed on your system;
+   https://handbrake.fr/docs/en/1.9.0/cli/cli-options.html
 2. Download or clone this repository into your Unity project's Assets folder.
 3. The tool will be available under the Tools menu in the Unity Editor.
 
