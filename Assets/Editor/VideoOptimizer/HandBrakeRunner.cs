@@ -35,9 +35,16 @@ namespace UnityHandBrakeVideoOptimizer
         public int ExitCode;
     }
 
+    internal sealed class ProcessRunResult
+    {
+        public int ExitCode;
+        public string RecentOutput;
+    }
+
     public static class HandBrakeRunner
     {
         private const string DefaultOutputFolder = "Assets/OptimizedVideos";
+        private const int MaxCapturedProcessLines = 30;
 
         public static string ExpectedExecutableName
         {
@@ -144,15 +151,15 @@ namespace UnityHandBrakeVideoOptimizer
                 List<string> arguments = BuildArguments(inputPath, tempOutputPath, options);
                 SafeLog(options, "Running: " + BuildCommandPreview(options.HandBrakeCliPath, arguments));
 
-                int exitCode = await RunProcessAsync(options.HandBrakeCliPath, arguments, options.Log, cancellationToken);
-                result.ExitCode = exitCode;
+                ProcessRunResult processResult = await RunProcessAsync(options.HandBrakeCliPath, arguments, options.Log, cancellationToken);
+                result.ExitCode = processResult.ExitCode;
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (exitCode != 0)
+                if (processResult.ExitCode != 0)
                 {
                     result.Success = false;
-                    result.Message = "HandBrakeCLI failed with exit code " + exitCode + ".";
+                    result.Message = "HandBrakeCLI failed with exit code " + processResult.ExitCode + BuildRecentOutputSuffix(processResult.RecentOutput);
                     DeleteIfExists(tempOutputPath);
                     return result;
                 }
@@ -160,7 +167,7 @@ namespace UnityHandBrakeVideoOptimizer
                 if (!File.Exists(tempOutputPath) || new FileInfo(tempOutputPath).Length <= 0)
                 {
                     result.Success = false;
-                    result.Message = "HandBrakeCLI finished, but no output file was produced.";
+                    result.Message = "HandBrakeCLI finished, but no output file was produced at: " + tempOutputPath + BuildRecentOutputSuffix(processResult.RecentOutput);
                     DeleteIfExists(tempOutputPath);
                     return result;
                 }
@@ -215,6 +222,8 @@ namespace UnityHandBrakeVideoOptimizer
             arguments.Add(inputPath);
             arguments.Add("-o");
             arguments.Add(outputPath);
+            arguments.Add("-f");
+            arguments.Add("av_mp4");
             arguments.Add("-e");
             arguments.Add(options.Codec == VideoOptimizerCodec.H265 ? "x265" : "x264");
             arguments.Add("-q");
@@ -222,8 +231,7 @@ namespace UnityHandBrakeVideoOptimizer
 
             if (options.PreserveFps)
             {
-                arguments.Add("--rate");
-                arguments.Add("same");
+                arguments.Add("--vfr");
             }
 
             arguments.Add("--audio");
@@ -241,7 +249,7 @@ namespace UnityHandBrakeVideoOptimizer
             return arguments;
         }
 
-        private static async Task<int> RunProcessAsync(
+        private static async Task<ProcessRunResult> RunProcessAsync(
             string executablePath,
             List<string> arguments,
             Action<string> log,
@@ -262,10 +270,13 @@ namespace UnityHandBrakeVideoOptimizer
                 };
 
                 process.EnableRaisingEvents = true;
+                Queue<string> recentOutputLines = new Queue<string>();
+                object recentOutputLock = new object();
                 process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs args)
                 {
                     if (!string.IsNullOrEmpty(args.Data))
                     {
+                        CaptureProcessLine(recentOutputLines, recentOutputLock, args.Data);
                         log?.Invoke(args.Data);
                     }
                 };
@@ -273,6 +284,7 @@ namespace UnityHandBrakeVideoOptimizer
                 {
                     if (!string.IsNullOrEmpty(args.Data))
                     {
+                        CaptureProcessLine(recentOutputLines, recentOutputLock, args.Data);
                         log?.Invoke(args.Data);
                     }
                 };
@@ -317,8 +329,33 @@ namespace UnityHandBrakeVideoOptimizer
                     int exitCode = await exitCompletion.Task;
                     process.WaitForExit();
                     cancellationToken.ThrowIfCancellationRequested();
-                    return exitCode;
+                    return new ProcessRunResult
+                    {
+                        ExitCode = exitCode,
+                        RecentOutput = GetRecentOutput(recentOutputLines, recentOutputLock)
+                    };
                 }
+            }
+        }
+
+        private static void CaptureProcessLine(Queue<string> recentOutputLines, object recentOutputLock, string line)
+        {
+            lock (recentOutputLock)
+            {
+                recentOutputLines.Enqueue(line);
+
+                while (recentOutputLines.Count > MaxCapturedProcessLines)
+                {
+                    recentOutputLines.Dequeue();
+                }
+            }
+        }
+
+        private static string GetRecentOutput(Queue<string> recentOutputLines, object recentOutputLock)
+        {
+            lock (recentOutputLock)
+            {
+                return string.Join("\n", recentOutputLines.ToArray());
             }
         }
 
@@ -567,6 +604,16 @@ namespace UnityHandBrakeVideoOptimizer
             {
                 options.Log(message);
             }
+        }
+
+        private static string BuildRecentOutputSuffix(string recentOutput)
+        {
+            if (string.IsNullOrWhiteSpace(recentOutput))
+            {
+                return ".";
+            }
+
+            return ". Recent HandBrake output: " + recentOutput.Replace("\r", " ").Replace("\n", " | ");
         }
 
         private sealed class OutputPlan

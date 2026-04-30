@@ -1,0 +1,39 @@
+# Unity default ignore
+[Library]/
+[Temp]/
+[Obj]/
+[Build]/
+[Builds]/
+[Logs]/
+[MemoryCaptures]/
+[UserSettings]/
+[Recordings]/
+
+# Keep Unity .meta files when they exist; they preserve asset GUIDs.
+!*.meta
+
+# Local plugin settings/output generated inside consuming Unity projects
+[ProjectSettings]/VideoOptimizerSettings.asset
+[Assets]/OptimizedVideos/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+*.swp
+*.lock
+*.user
+*.userprefs
+*.pidb
+*.suo
+*.sln
+*.userprefs
+*.unitypackage
+*.csproj
+*.unityproj
+.vs/
+.idea/
+
+# Log files
+*.log
+*.tmp
+*.bak
